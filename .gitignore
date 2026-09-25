@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Data & trained voice models (kept local only, never pushed)
+/data/
+*.pth
+*.index
+*.onnx
+
+# External ML repos the user clones locally (RVC, Seed-VC, ...)
+/third_party/*
+!/third_party/.gitkeep
+!/third_party/README.md
+
+# PyInstaller build output
+/build/
+/dist/
+*.build/
+*.dist/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / temp
+*.log
+/tmp/

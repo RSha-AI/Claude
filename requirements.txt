@@ -1,0 +1,11 @@
+# GPU 지원 torch/torchaudio는 Windows + CUDA 버전에 맞춰 별도 설치 권장:
+# https://pytorch.org/get-started/locally/ (예: RTX 2070 -> CUDA 12.x용 wheel)
+torch
+torchaudio
+librosa
+numpy
+PySide6
+pyinstaller
+
+# third_party/seed-vc, third_party/rvc 각 저장소의 requirements.txt도
+# 별도로 설치해야 한다 (pip install -r third_party/seed-vc/requirements.txt 등).
