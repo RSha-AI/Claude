@@ -6,8 +6,62 @@
 
 from __future__ import annotations
 
+import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Callable
+
+from app.config import engine_env
+
+LogCallback = Callable[[str], None]
+
+
+class EngineError(RuntimeError):
+    pass
+
+
+def run_engine_process(
+    python: Path,
+    args: list[str],
+    cwd: Path,
+    what: str,
+    on_log: LogCallback | None = None,
+) -> str:
+    """외부 엔진 스크립트를 해당 엔진 전용 python으로 실행하고 전체 출력을 반환한다.
+
+    on_log가 주어지면 출력을 줄 단위로 실시간 전달한다(학습처럼 오래 걸리는 작업용).
+    실패 시 출력 마지막 부분을 담아 EngineError를 던진다.
+    """
+    env = engine_env()
+    # 엔진 스크립트들은 저장소 루트 기준 import(`from infer.audio import ...`)를 쓴다.
+    # 또 RVC의 train/preprocess.py 등은 스크립트 폴더(train/)가 sys.path에 들어가면
+    # `train` 패키지 대신 train/train.py가 import되어 깨진다. RVC 공식 포터블 런타임과
+    # 같은 조건을 만들기 위해 -P(스크립트 폴더 prepend 금지) + PYTHONPATH=저장소 루트.
+    env["PYTHONPATH"] = str(cwd)
+    proc = subprocess.Popen(
+        [str(python), "-P", *args],
+        cwd=str(cwd),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    lines: list[str] = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        line = line.rstrip()
+        lines.append(line)
+        if on_log:
+            on_log(line)
+    proc.wait()
+    output = "\n".join(lines)
+    if proc.returncode != 0:
+        tail = "\n".join(lines[-30:])
+        raise EngineError(f"{what} 실패 (exit={proc.returncode}):\n{tail}")
+    return output
 
 
 class VoiceConversionEngine(ABC):

@@ -1,11 +1,8 @@
-# GPU 지원 torch/torchaudio는 Windows + CUDA 버전에 맞춰 별도 설치 권장:
-# https://pytorch.org/get-started/locally/ (예: RTX 2070 -> CUDA 12.x용 wheel)
-torch
-torchaudio
+# 앱(GUI) 가상환경용 의존성. torch는 필요 없다 — 음성 변환/학습은
+# third_party/seed-vc/.venv, third_party/rvc/.venv 의 엔진 전용 python이
+# 별도 프로세스로 수행한다 (third_party/README.md 참고).
 librosa
 numpy
 PySide6
 pyinstaller
-
-# third_party/seed-vc, third_party/rvc 각 저장소의 requirements.txt도
-# 별도로 설치해야 한다 (pip install -r third_party/seed-vc/requirements.txt 등).
+pytest

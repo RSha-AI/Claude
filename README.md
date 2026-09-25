@@ -49,21 +49,22 @@ cd D:\
 git clone <이 저장소 URL> voice-changer
 cd voice-changer
 
-# 가상환경 생성 (D드라이브에)
-python -m venv venv
+# 앱(GUI) 가상환경 생성 — D드라이브의 Python 3.12 사용 (C드라이브 Python 금지)
+D:\프로그램\Python\python.exe -m venv venv
 venv\Scripts\activate
-
-# 의존성 설치 (CUDA용 torch는 PyTorch 공식 가이드 참고)
 pip install -r requirements.txt
 
-# 외부 엔진 클론 (third_party/README.md 참고)
-git clone https://github.com/Plachtaa/seed-vc.git third_party/seed-vc
-git clone https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI.git third_party/rvc
-pip install -r third_party/seed-vc/requirements.txt
-pip install -r third_party/rvc/requirements.txt
+# 외부 엔진 클론 + 엔진별 전용 가상환경 + 사전학습 가중치
+# → third_party/README.md 의 명령을 그대로 실행
 
-# ffmpeg 설치 (PATH에 추가하거나, ffmpeg/ffmpeg.exe 를 프로젝트 루트에 동봉)
+# ffmpeg: 프로젝트 루트 ffmpeg/ 폴더에 동봉 (gitignore 대상)
+New-Item -ItemType Directory -Force ffmpeg | Out-Null
+curl.exe -L -o ffmpeg\ffmpeg.exe https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/ffmpeg.exe
+curl.exe -L -o ffmpeg\ffprobe.exe https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/ffprobe.exe
 ```
+
+앱 venv에는 torch가 필요 없다. 음성 변환/학습은 각 엔진의 `.venv` python이 별도
+프로세스로 수행한다.
 
 ## 실행
 
@@ -97,5 +98,6 @@ pytest tests/
 ## 주의: 외부 엔진 CLI 버전 차이
 
 Seed-VC / RVC는 활발히 개발 중인 외부 프로젝트라 스크립트 인자가 버전마다 달라질
-수 있다. `app/config.py`의 `SEEDVC_INFER_CMD_TEMPLATE` / `RVC_INFER_CMD_TEMPLATE` /
-`RVC_TRAIN_CMD_TEMPLATE` 을 실제로 클론한 저장소 버전에 맞게 조정해야 할 수 있다.
+수 있다. 검증된 커밋은 `third_party/README.md`에 적어 두었다. 저장소를 업데이트해서
+CLI가 바뀌면 `app/config.py`의 `SEEDVC_INFER_ARGS` / `RVC_INFER_ARGS` 와
+`app/engines/rvc_engine.py`의 `train_rvc_voice()` 학습 단계를 맞춰 수정한다.

@@ -66,25 +66,65 @@ def resolve_ffmpeg_bin() -> str:
 
 FFMPEG_BIN = resolve_ffmpeg_bin()
 
-# --- 외부 엔진 실행 커맨드 템플릿 -------------------------------------------------
-# Seed-VC / RVC는 둘 다 활발히 개발 중인 외부 프로젝트라 스크립트 경로나 인자 이름이
-# 버전에 따라 달라질 수 있다. 하드코딩 대신 템플릿으로 분리해두었으니, third_party/에
-# 클론한 저장소의 실제 CLI에 맞게 이 값들만 수정하면 된다. (app/engines/*.py는 이
-# 템플릿을 그대로 사용하므로 코드를 고칠 필요가 없다.)
-PYTHON_BIN = sys.executable
+# --- 외부 엔진 실행 설정 ----------------------------------------------------------
+# Seed-VC와 RVC는 torch/transformers/gradio 버전 요구가 서로 충돌하므로 각 저장소 안에
+# 전용 가상환경(.venv)을 만들어 별도 프로세스로 실행한다. (패키징된 exe에서는
+# sys.executable이 exe 자신이 되므로, 이렇게 엔진별 python을 따로 지정해야 한다.)
+def _venv_python(repo_dir: Path) -> Path:
+    if sys.platform == "win32":
+        return repo_dir / ".venv" / "Scripts" / "python.exe"
+    return repo_dir / ".venv" / "bin" / "python"
 
-SEEDVC_INFER_CMD_TEMPLATE = (
-    '"{python}" "{seedvc_dir}/inference.py" '
-    '--source "{source_wav}" --target "{reference_wav}" --output "{out_dir}"'
-)
 
-RVC_INFER_CMD_TEMPLATE = (
-    '"{python}" "{rvc_dir}/tools/infer_cli.py" '
-    '--input_path "{source_wav}" --model_path "{model_path}" '
-    '--index_path "{index_path}" --opt_path "{out_wav}"'
-)
+SEEDVC_PYTHON = _venv_python(SEEDVC_REPO_DIR)
+RVC_PYTHON = _venv_python(RVC_REPO_DIR)
 
-RVC_TRAIN_CMD_TEMPLATE = (
-    '"{python}" "{rvc_dir}/train_cli.py" '
-    '--exp_name "{exp_name}" --dataset_dir "{dataset_dir}" --sample_rate 40000'
-)
+# 외부 엔진 CLI 인자 템플릿. 각 항목은 str.format()으로 치환된 뒤 리스트 그대로
+# subprocess에 전달된다(셸을 거치지 않으므로 한글/공백 경로도 안전). 엔진 저장소를
+# 업데이트해서 CLI가 바뀌면 이 값들만 수정하면 된다. 실행 시 cwd는 각 저장소 루트.
+#
+# Seed-VC (inference.py, 2026-09 기준): 출력 폴더에 vc_<source>_<target>_...wav 로
+# 저장하므로 엔진 쪽에서 결과 파일을 찾아 원하는 경로로 옮긴다.
+SEEDVC_INFER_ARGS = [
+    "inference.py",
+    "--source", "{source_wav}",
+    "--target", "{reference_wav}",
+    "--output", "{out_dir}",
+    "--diffusion-steps", "{diffusion_steps}",
+    "--fp16", "True",
+]
+SEEDVC_DIFFUSION_STEPS = 30  # 품질/속도 트레이드오프 (공식 권장 30~50)
+
+# RVC (infer/cli.py, 2026-09 기준). index가 없으면 --index-rate 0 으로 실행.
+RVC_INFER_ARGS = [
+    "infer/cli.py",
+    "--model", "{model_path}",
+    "--input", "{source_wav}",
+    "--output", "{out_wav}",
+    "--f0-method", "rmvpe",
+    "--pitch", "{pitch}",
+    "--overwrite",
+]
+
+# RVC 학습 파라미터 (v2 / 40k / F0 사용). RTX 2070(8GB) 기준 기본값.
+RVC_TRAIN_SAMPLE_RATE = "40k"
+RVC_TRAIN_EPOCHS = 200
+RVC_TRAIN_SAVE_EVERY = 50
+RVC_TRAIN_BATCH_SIZE = 8
+
+
+def engine_env() -> dict[str, str]:
+    """외부 엔진 프로세스용 환경 변수.
+
+    - 동봉 ffmpeg 폴더를 PATH 앞에 추가 (RVC/Seed-VC 내부 오디오 로딩용)
+    - 자식 파이썬 출력 인코딩을 UTF-8로 고정 (한글 경로/로그 깨짐 방지)
+    """
+    import os
+
+    env = os.environ.copy()
+    ffmpeg_dir = str(Path(FFMPEG_BIN).parent) if Path(FFMPEG_BIN).is_file() else ""
+    if ffmpeg_dir:
+        env["PATH"] = ffmpeg_dir + os.pathsep + env.get("PATH", "")
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env

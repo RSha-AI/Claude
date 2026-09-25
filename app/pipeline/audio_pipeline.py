@@ -96,7 +96,12 @@ def split_for_conversion(
 
     duration = get_wav_duration_seconds(wav_path)
     start = start or 0.0
-    end = end if end is not None else duration
+    end = min(end, duration) if end is not None else duration
+    if start < 0 or start >= end:
+        raise ValueError(
+            f"변환 구간이 올바르지 않습니다: 시작 {start:.2f}초 / 종료 {end:.2f}초 "
+            f"(영상 길이 {duration:.2f}초)"
+        )
 
     before = None
     if start > 0.0:
@@ -135,7 +140,32 @@ def concat_wavs(parts: list[Path], out_path: Path) -> Path:
     return out_path
 
 
+def conform_to(src: Path, reference: Path, dst: Path) -> Path:
+    """src를 reference와 같은 포맷(SAMPLE_RATE, mono, s16)과 정확히 같은 길이로 맞춘다.
+
+    변환 엔진 출력은 샘플레이트가 제각각(Seed-VC 22.05k, RVC 40k)이고 길이도 수 ms씩
+    달라질 수 있다. 그대로 이어붙이면 concat이 깨지거나 영상과 싱크가 밀리므로,
+    리샘플 후 부족하면 무음으로 채우고 넘치면 자른다.
+    """
+    duration = get_wav_duration_seconds(reference)
+    run_ffmpeg(
+        [
+            "-i", str(src),
+            "-af", "apad",
+            "-t", f"{duration:.6f}",
+            "-ar", str(SAMPLE_RATE),
+            "-ac", "1",
+            "-acodec", "pcm_s16le",
+            str(dst),
+        ]
+    )
+    return dst
+
+
 def reassemble(segments: AudioSegments, converted_target: Path, out_path: Path) -> Path:
     """변환된 target 조각을 before/after 원본과 원래 순서로 재결합한다."""
-    parts = [p for p in (segments.before, converted_target, segments.after) if p is not None]
+    conformed = conform_to(
+        converted_target, segments.target, out_path.parent / "converted_conformed.wav"
+    )
+    parts = [p for p in (segments.before, conformed, segments.after) if p is not None]
     return concat_wavs(parts, out_path)

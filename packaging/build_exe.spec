@@ -18,9 +18,9 @@ a = Analysis(
     pathex=[str(PROJECT_ROOT)],
     binaries=[],
     datas=[],
+    # torch 등 ML 라이브러리는 exe에 넣지 않는다. 엔진은 exe 옆 third_party/*/.venv
+    # 의 python으로 별도 실행된다 (app/config.py SEEDVC_PYTHON / RVC_PYTHON).
     hiddenimports=[
-        "torch",
-        "torchaudio",
         "librosa",
     ],
     hookspath=[],

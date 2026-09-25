@@ -21,6 +21,9 @@ env/
 !/third_party/.gitkeep
 !/third_party/README.md
 
+# Bundled ffmpeg binaries (downloaded locally, see README)
+/ffmpeg/
+
 # PyInstaller build output
 /build/
 /dist/
